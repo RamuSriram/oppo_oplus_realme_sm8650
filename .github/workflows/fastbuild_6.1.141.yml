@@ -301,6 +301,10 @@ jobs:
             cd ./common
             patch -p1 -F 3 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
             patch -p1 -N -F 3 < 69_hide_stuff.patch || true
+            if grep -q '\<fake_state\>' ./security/selinux/hooks.c ./security/selinux/selinuxfs.c && ! grep -Rqs '^[[:space:]]*struct selinux_state[[:space:]]\+fake_state\>' ./security/selinux; then
+              echo "检测到 fake_state 兼容性问题，回退到 selinux_state..."
+              sed -i 's/\<fake_state\>/selinux_state/g' ./security/selinux/hooks.c ./security/selinux/selinuxfs.c
+            fi
             cd ..
           else
             echo "已选择无内置KernelSU模式，跳过susfs配置..."
