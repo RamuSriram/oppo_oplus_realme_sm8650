@@ -104,16 +104,16 @@ fi
 # 修复 6.1.157 Nord 5 源码中 task_struct 的 KABI 槽位偏移错位问题 (CONFIG_SLIM_SCHED 将 dmabuf_info 从 slot 2 挤到 slot 4 导致开机无限重启)
 python3 -c 'p="include/linux/sched.h"; s=open(p,encoding="utf-8").read(); old="\tANDROID_KABI_USE(1, unsigned int saved_state);\n#ifdef CONFIG_SLIM_SCHED\n\tANDROID_KABI_USE(2, unsigned long sched_prop);\n\tANDROID_KABI_USE(3, struct sched_ext_entity *scx);\n\tANDROID_KABI_USE(4, struct task_dma_buf_info *dmabuf_info);\n#else\n\tANDROID_KABI_USE(2, struct task_dma_buf_info *dmabuf_info);\n\tANDROID_KABI_RESERVE(3);\n\tANDROID_KABI_RESERVE(4);\n#endif"; new="\tANDROID_KABI_USE(1, unsigned int saved_state);\n\tANDROID_KABI_USE(2, struct task_dma_buf_info *dmabuf_info);\n#ifdef CONFIG_SLIM_SCHED\n\tANDROID_KABI_USE(3, unsigned long sched_prop);\n\tANDROID_KABI_USE(4, struct sched_ext_entity *scx);\n#else\n\tANDROID_KABI_RESERVE(3);\n\tANDROID_KABI_RESERVE(4);\n#endif"; assert old in s, "sched.h KABI pattern not found!"; open(p,"w",encoding="utf-8").write(s.replace(old,new,1))'
 rm -rf drivers/soc/oplus/oplus_resctrl drivers/soc/oplus/storage kernel/locking/locking_main.h kernel/locking/oplus_locking.c kernel/locking/sa_common_struct.h kernel/oplus_cpu
-wget -q https://github.com/cctv18/android_kernel_common_oneplus_sm8650/commit/1c9edfd50d2a.patch
+curl -fsSL -H "Accept: application/vnd.github.patch" https://api.github.com/repos/cctv18/android_kernel_common_oneplus_sm8650/commits/1c9edfd50d2a -o 1c9edfd50d2a.patch
 python3 -c 'import re; p=open("1c9edfd50d2a.patch",encoding="utf-8").read(); p=re.sub(r"diff --git a/[^\n]+\ndeleted file mode 120000\n.*?(?=\ndiff --git |\Z)","",p,flags=re.S); open("1c9edfd50d2a.patch","w",encoding="utf-8").write(p)'
 git apply -p1 1c9edfd50d2a.patch
 rm -f 1c9edfd50d2a.patch
 for rel in sched/sched_assist/sa_common.c sched/sched_assist/sa_common.h sched/sched_assist/sa_ddl.c sched/sched_assist/sa_fair.c sched/sched_assist/sa_oemdata.c sched/sched_assist/sched_assist.c waker_identify/waker_identify.c; do
   wget -q "https://raw.githubusercontent.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8635/oneplus/sm8635_b_16.0.0_nord_5/vendor/oplus/kernel/cpu/$rel" -O "kernel/oplus_cpu/$rel"
 done
-wget -q https://github.com/cctv18/android_kernel_common_oneplus_sm8650/commit/8cd9786cbcc5.patch && patch -p1 -F 3 < 8cd9786cbcc5.patch && rm -f 8cd9786cbcc5.patch
-wget -q https://github.com/cctv18/android_kernel_common_oneplus_sm8650/commit/a7a67b52a514.patch && patch -p1 -F 3 < a7a67b52a514.patch && rm -f a7a67b52a514.patch
-wget -q https://github.com/cctv18/android_kernel_common_oneplus_sm8650/commit/81bd0078c430.patch && patch -p1 -F 3 < 81bd0078c430.patch && rm -f 81bd0078c430.patch
+curl -fsSL -H "Accept: application/vnd.github.patch" https://api.github.com/repos/cctv18/android_kernel_common_oneplus_sm8650/commits/8cd9786cbcc5 -o 8cd9786cbcc5.patch && patch -p1 -F 3 < 8cd9786cbcc5.patch && rm -f 8cd9786cbcc5.patch
+curl -fsSL -H "Accept: application/vnd.github.patch" https://api.github.com/repos/cctv18/android_kernel_common_oneplus_sm8650/commits/a7a67b52a514 -o a7a67b52a514.patch && patch -p1 -F 3 < a7a67b52a514.patch && rm -f a7a67b52a514.patch
+curl -fsSL -H "Accept: application/vnd.github.patch" https://api.github.com/repos/cctv18/android_kernel_common_oneplus_sm8650/commits/81bd0078c430 -o 81bd0078c430.patch && patch -p1 -F 3 < 81bd0078c430.patch && rm -f 81bd0078c430.patch
 cd ..
 echo ">>> 初始化仓库完成"
 
@@ -137,13 +137,15 @@ if [[ $KSU_BRANCH == [yYrR] ]]; then
   echo ">>> 拉取 BakaSU (main分支) 并设置版本（由于SukiSU长期未维护无法正常编译，且BakaSU兼容sukisu管理器，故SukiSU源码仓库已重定向为bakasu）..."
   curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash -s main
   echo 'CONFIG_KSU_FULL_NAME_FORMAT="%TAG_NAME%-%COMMIT_SHA%@cctv18"' >> ./common/arch/arm64/configs/gki_defconfig
-  sed -i '/__maybe_static struct page \*fake_status = NULL;/a #if defined(KSU_COMPAT_HAS_SUSFS_FEATURE_SELINUX_HIDE) \&\& LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)\nstruct selinux_state fake_state;\n#endif' ./KernelSU/kernel/feature/selinux_hide.c
-  sed -i '/no backup sepolicy available/{n;n;a #if defined(KSU_COMPAT_HAS_SUSFS_FEATURE_SELINUX_HIDE) \&\& LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)\n    fake_state.initialized = true;\n    fake_state.policy = backup_sepolicy;\n#endif
-  }' ./KernelSU/kernel/feature/selinux_hide.c
+  if [ -f ./KernelSU/kernel/feature/selinux_hide.c ]; then
+    sed -i '/__maybe_static struct page \*fake_status = NULL;/a #if defined(KSU_COMPAT_HAS_SUSFS_FEATURE_SELINUX_HIDE) \&\& LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)\nstruct selinux_state fake_state;\n#endif' ./KernelSU/kernel/feature/selinux_hide.c
+    sed -i '/no backup sepolicy available/{n;n;a #if defined(KSU_COMPAT_HAS_SUSFS_FEATURE_SELINUX_HIDE) \&\& LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)\n    fake_state.initialized = true;\n    fake_state.policy = backup_sepolicy;\n#endif
+    }' ./KernelSU/kernel/feature/selinux_hide.c
+  fi
   sed -i 's/-dirty//g' ./KernelSU/kernel/Kbuild
 elif [[ "$KSU_BRANCH" == "s" || "$KSU_BRANCH" == "S" ]]; then
-  echo ">>> 拉取 BakaSU (sync-up分支) 并设置版本..."
-  curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/refs/heads/sync-up/kernel/setup.sh" | bash -s sync-up
+  echo ">>> 拉取 BakaSU (sync-up已合并至main分支) 并设置版本..."
+  curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/refs/heads/main/kernel/setup.sh" | bash -s main
   echo 'CONFIG_KSU_FULL_NAME_FORMAT="%TAG_NAME%-%COMMIT_SHA%@cctv18"' >> ./common/arch/arm64/configs/gki_defconfig
   if ! grep -q "KSU_SUSFS_PRIORITY_UID_FILTER" ./KernelSU/kernel/Kconfig; then
     sed -i '/config KSU_SUSFS_SUS_MAP/i config KSU_SUSFS_PRIORITY_UID_FILTER\n    bool "Enable priority uid filter"\n    depends on KSU_SUSFS\n    default y\n' ./KernelSU/kernel/Kconfig
@@ -159,7 +161,7 @@ elif [[ "$KSU_BRANCH" == "n" || "$KSU_BRANCH" == "N" ]]; then
   KSU_GIT_TAG=$(curl -sL "https://api.github.com/repos/KernelSU-Next/KernelSU-Next/tags" | grep -o '"name": *"[^"]*"' | head -n 1 | sed 's/"name": "//;s/"//')
   sed -i "s/KSU_VERSION_TAG_FALLBACK := v0.0.1/KSU_VERSION_TAG_FALLBACK := $KSU_GIT_TAG/g" kernel/Kbuild
   cd ../common/drivers/kernelsu
-  wget https://github.com/cctv18/oppo_oplus_realme_sm8650/raw/refs/heads/main/other_patch/apk_sign.patch
+  wget https://raw.githubusercontent.com/cctv18/oppo_oplus_realme_sm8650/refs/heads/main/other_patch/apk_sign.patch
   patch -p2 -N -F 3 < apk_sign.patch || true
 elif [[ "$KSU_BRANCH" == "k" || "$KSU_BRANCH" == "K" ]]; then
   echo ">>> 拉取 KernelSU (tiann/KernelSU) 并设置版本..."
@@ -181,8 +183,8 @@ if [[ "$APPLY_SUSFS" == [yY] ]]; then
   else
     git clone --depth=1 https://github.com/cctv18/susfs4oki.git susfs4ksu -b oki-android14-6.1
   fi
-  wget https://github.com/cctv18/oppo_oplus_realme_sm8650/raw/refs/heads/main/other_patch/69_hide_stuff.patch -O ./common/69_hide_stuff.patch
-  grep -q "jdwp-control" ./common/69_hide_stuff.patch || wget https://github.com/RamuSriram/oppo_oplus_realme_sm8650/raw/refs/heads/main/other_patch/69_hide_stuff.patch -O ./common/69_hide_stuff.patch
+  wget https://raw.githubusercontent.com/cctv18/oppo_oplus_realme_sm8650/refs/heads/main/other_patch/69_hide_stuff.patch -O ./common/69_hide_stuff.patch
+  grep -q "jdwp-control" ./common/69_hide_stuff.patch || wget https://raw.githubusercontent.com/RamuSriram/oppo_oplus_realme_sm8650/refs/heads/main/other_patch/69_hide_stuff.patch -O ./common/69_hide_stuff.patch
   cp ./susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch ./common/
   cp ./susfs4ksu/kernel_patches/fs/* ./common/fs/
   cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
@@ -272,13 +274,13 @@ fi
 echo "CONFIG_TMPFS_XATTR=y" >> "$DEFCONFIG_FILE"
 echo "CONFIG_TMPFS_POSIX_ACL=y" >> "$DEFCONFIG_FILE"
 echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y" >> "$DEFCONFIG_FILE"
-if [[ "$KSU_BRANCH" != [sS] ]]; then
+if [[ "$KSU_BRANCH" != [yYrRsS] ]]; then
   echo "CONFIG_HEADERS_INSTALL=n" >> "$DEFCONFIG_FILE"
 fi
 
 # 应用 CVE_2026_43499 修复补丁 (6.1.157 已内置，使用 -N || true)
 cd common
-wget https://github.com/cctv18/oppo_oplus_realme_sm8650/raw/refs/heads/main/other_patch/cve-2026-43499-rtmutex-6.1.patch
+wget https://raw.githubusercontent.com/cctv18/oppo_oplus_realme_sm8650/refs/heads/main/other_patch/cve-2026-43499-rtmutex-6.1.patch
 patch -p1 -N -F 3 < cve-2026-43499-rtmutex-6.1.patch || true
 cd ..
 
@@ -318,7 +320,7 @@ if [[ "$APPLY_BETTERNET" == "y" || "$APPLY_BETTERNET" == "Y" ]]; then
   echo "CONFIG_IP6_NF_NAT=y" >> "$DEFCONFIG_FILE"
   echo "CONFIG_IP6_NF_TARGET_MASQUERADE=y" >> "$DEFCONFIG_FILE"
   cd common
-  wget https://github.com/cctv18/oppo_oplus_realme_sm8650/raw/refs/heads/main/other_patch/config.patch
+  wget https://raw.githubusercontent.com/cctv18/oppo_oplus_realme_sm8650/refs/heads/main/other_patch/config.patch
   patch -p1 -F 3 < config.patch || true
   cd ..
 fi
@@ -354,12 +356,12 @@ if [[ "$APPLY_DROIDSPACES" == [sSeE] ]]; then
   echo "CONFIG_NETFILTER_XT_MATCH_RECENT=y" >> "$DEFCONFIG_FILE"
   echo "CONFIG_NTSYNC=y" >> "$DEFCONFIG_FILE"
   cd common
-  wget https://github.com/cctv18/oppo_oplus_realme_sm8650/raw/refs/heads/main/droidspaces_patch/fix_sysvipc_kabi_6_7_8.patch
+  wget https://raw.githubusercontent.com/cctv18/oppo_oplus_realme_sm8650/refs/heads/main/droidspaces_patch/fix_sysvipc_kabi_6_7_8.patch
   patch -p1 -F 3 < fix_sysvipc_kabi_6_7_8.patch || true
-  wget https://github.com/cctv18/oppo_oplus_realme_sm8650/raw/refs/heads/main/droidspaces_patch/fix_oplus_bsp_midas.patch
+  wget https://raw.githubusercontent.com/cctv18/oppo_oplus_realme_sm8650/refs/heads/main/droidspaces_patch/fix_oplus_bsp_midas.patch
   patch -p1 -F 3 < fix_oplus_bsp_midas.patch || true
-  wget https://github.com/cctv18/oppo_oplus_realme_sm8650/raw/refs/heads/main/droidspaces_patch/ntsync_base.patch
-  wget https://github.com/cctv18/oppo_oplus_realme_sm8650/raw/refs/heads/main/droidspaces_patch/ntsync_compat_android14-6.1.patch
+  wget https://raw.githubusercontent.com/cctv18/oppo_oplus_realme_sm8650/refs/heads/main/droidspaces_patch/ntsync_base.patch
+  wget https://raw.githubusercontent.com/cctv18/oppo_oplus_realme_sm8650/refs/heads/main/droidspaces_patch/ntsync_compat_android14-6.1.patch
   patch -p1 -F 3 < ntsync_base.patch || true
   patch -p1 -F 3 < ntsync_compat_android14-6.1.patch || true
   cd ..
@@ -369,7 +371,7 @@ if [[ "$APPLY_DROIDSPACES" == [sSeE] ]]; then
     echo "CONFIG_STATIC_USERMODEHELPER=n" >> "$DEFCONFIG_FILE"
     echo "CONFIG_DRM_LINDROID_EVDI=y" >> "$DEFCONFIG_FILE"
     cd common
-    wget https://github.com/cctv18/oppo_oplus_realme_sm8650/raw/refs/heads/main/droidspaces_patch/evdi_drm.patch
+    wget https://raw.githubusercontent.com/cctv18/oppo_oplus_realme_sm8650/refs/heads/main/droidspaces_patch/evdi_drm.patch
     patch -p1 -F 3 < evdi_drm.patch || true
     cd ..
   fi
@@ -390,7 +392,7 @@ if [[ "$APPLY_BBG" == "y" || "$APPLY_BBG" == "Y" ]]; then
   echo ">>> 正在启用内核级基带保护..."
   echo "CONFIG_BBG=y" >> "$DEFCONFIG_FILE"
   cd ./common
-  curl -sSL https://github.com/cctv18/Baseband-guard/raw/master/setup.sh | bash
+  curl -sSL https://raw.githubusercontent.com/cctv18/Baseband-guard/master/setup.sh | bash
   sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
   cd ..
 fi
@@ -401,7 +403,7 @@ sed -i 's/check_defconfig//' ./common/build.config.gki
 echo ">>> 开始编译内核..."
 cd common
 make -j$(nproc --all) LLVM=-20 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnuabeihf- CC=clang LD=ld.lld HOSTCC=clang HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
-if [[ "$KSU_BRANCH" == [sS] ]]; then
+if [[ "$KSU_BRANCH" == [yYrRsS] ]]; then
   make -j$(nproc --all) LLVM=-20 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnuabeihf- CC=clang LD=ld.lld HOSTCC=clang HOSTLD=ld.lld O=out INSTALL_HDR_PATH="$(pwd)/out/usr" headers_install
 fi
 make -j$(nproc --all) LLVM=-20 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnuabeihf- CC=clang LD=ld.lld HOSTCC=clang HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error all

@@ -175,17 +175,7 @@
  	setup_selinux("u:r:ksu:s0", cred);
  	commit_creds(cred);
  
-@@ -372,7 +378,8 @@
- {
- 	struct fuse_inode *fi = NULL;
- 	if (!susfs_is_current_proc_umounted_app()) {
--		return false;
-+		if (!(inode && S_ISSOCK(inode->i_mode) && susfs_is_current_app_uid()))
-+			return false;
- 	}
- 	if (!inode->i_mapping) {
- 		SUSFS_LOGE("inode->i_mapping is NULL\n");
-@@ -1784,11 +1791,19 @@
+@@ -1784,11 +1790,19 @@
   * Lockless lookup for the getpriority/setpriority syscall path.
   * Returns true if the uid is hidden by the priority uid filter.
   */
@@ -202,8 +192,8 @@
 +	if (ksu_is_manager_uid(uid))
 +		return true;
 +
- 	if (app_id < SUSFS_PRIORITY_UID_FILTER_MIN_UID ||
- 		app_id > SUSFS_PRIORITY_UID_FILTER_MAX_UID)
+ 	if (app_id < SUSFS_UID_FILTER_MIN_UID ||
+ 		app_id > SUSFS_UID_FILTER_MAX_UID)
  		return false;
 --- a/fs/readdir.c
 +++ b/fs/readdir.c
